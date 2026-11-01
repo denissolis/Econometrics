@@ -1,0 +1,363 @@
+###############################################################################
+#                                                                             #
+#        W4479 - Applied project using R, winter semester 2024 / 2025         #
+#                                                                             #
+#                Problem 3: Modelling Nonlinear Relationships                 #
+#                                                                             #
+###############################################################################
+
+# Information:
+
+# Use this file to save your code for solving Problem 3 of the applied 
+# project.
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+# <------- Start here with your own code --------> # 
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(tidyr)
+
+mydata <- read.csv("clean_data.csv",sep=";", header = TRUE)
+# check first few rows
+head(mydata)
+
+# Rename columns for simplicity
+colnames(mydata) <- c("Year", "Time_Code","Country","Code", "GDP", "LifeExp")
+
+# Ensure the dataset has just valid values
+mydata <- mydata %>% filter(!is.na(GDP), !is.na(LifeExp))
+
+
+
+
+#---------------------------------------------------------------  
+#------ 3B.Display the data in a suitable figure. Indicate the reason why a SLR model is not
+#suitable for the original data.
+#--------------------------------- ------------------------------ 
+
+# Plot the observations and fitted regression line
+plot <- ggplot(mydata, aes(x = GDP, y = LifeExp)) +
+  geom_point(aes(shape = "1"), color = "black", size = 3) +
+  geom_smooth(aes(linetype = "1"), method = "lm", formula = y ~ x, se = FALSE, color = "red") +
+  labs(title = "Relationship between GDP per capita and life expectancy (2019) 
+       for different countries"
+       , x = "GDP", y = "LifeExp")+
+  scale_shape_manual(name = "Points:", values = 16, labels = "Observations") +
+  scale_linetype_manual(name = "Lines:", values = 1, labels = "Regression line")+
+  theme(
+    plot.title = element_text(hjust = 0.5) 
+  )
+
+# Print the graphic.! 
+print(plot)
+
+model_linear <- lm(LifeExp ~ GDP, data = mydata)
+summary(model_linear)
+
+#---------------------------------------------------------------  
+#------ 3B.
+# using something similar to the tutorial problem 5.5 
+#---------------------------------------------------------------
+#--------------------------------- ------------------------------ 
+
+
+
+# 1 plot (X∗i=log(Xi) , Yi)
+plot_logGDP_LifeExp <- ggplot(mydata, 
+                        aes(x = log(GDP), y = LifeExp)) + 
+  # add points with transparency
+  geom_point(alpha = 0.25, size = 2) +
+  geom_smooth(aes(linetype = "1"), method = "lm", formula = y ~ x, se = FALSE, color = "red") +
+  ggtitle("LifeExp on log(GDP)")+
+  theme(
+    plot.title = element_text(hjust = 0.5) 
+  )
+
+
+# 2 plot ((X∗∗i=1/Xi , Yi),
+plot_invert_GDP_LifeExp <- ggplot(mydata, 
+                              aes(x = (1/GDP), y = LifeExp)) +
+  geom_smooth(aes(linetype = "1"), method = "lm", formula = y ~ x, se = FALSE, color = "red") +
+  # add points with transparency
+  geom_point(alpha = 0.25, size = 2) +
+  ggtitle("LifeExp on (1/GDP)") +
+  theme(
+    plot.title = element_text(hjust = 0.5) 
+  )
+
+
+#3  plot (Xi ,Y∗i = log(Yi).),
+plot_GDP_logLifeExp <- ggplot(mydata, 
+                              aes(x = GDP, y = log(LifeExp)) ) +
+  geom_smooth(aes(linetype = "1"), method = "lm", formula = y ~ x, se = FALSE, color = "red") + 
+  # add points with transparency
+  geom_point(alpha = 0.25, size = 2) +
+  ggtitle("Log(LifeExp) on GDP")   +
+  theme(
+    plot.title = element_text(hjust = 0.5) 
+  )
+
+#4  plot  (X∗i=log(Xi)  ,Y∗i = log(Yi).),
+plot_logGDP_logLifeExp <- ggplot(mydata, 
+                              aes(x = log(GDP), y = log(LifeExp)) ) +
+  geom_smooth(aes(linetype = "1"), method = "lm", formula = y ~ x, se = FALSE, color = "red") +
+  # add points with transparency
+  geom_point(alpha = 0.25, size = 2) +
+  ggtitle("Log(LifeExp) on log(GDP)") +
+  theme(
+    plot.title = element_text(hjust = 0.5) 
+  )
+
+
+
+# put all four plots into a single window
+ggarrange(plot_logGDP_LifeExp, plot_invert_GDP_LifeExp, 
+          plot_GDP_logLifeExp, plot_logGDP_logLifeExp,
+          nrow = 2, ncol = 2)
+
+
+#---------------------------------------------------------------  
+#------ 3D.
+# Report the results (including the fitted models, the standard deviations of
+#the estimators, t-values as well as R2) in suitable table(s)
+#---------------------------------------------------------------
+#Just for convinient
+#0)
+mydata$X <- mydata$GDP
+mydata$Y <- mydata$LifeExp
+
+# 1) X*  = log(X)
+mydata$X_star <- log(mydata$X)
+
+# 2) X** = 1/X
+mydata$X_starstar <- 1 / mydata$X
+
+# 3) Y*  = log(Y)
+mydata$Y_star <- log(mydata$Y)
+
+
+m1 <- lm(Y ~ X, data = mydata)
+m2 <- lm(Y ~ X_star, data = mydata)
+m3 <- lm(Y ~ X_starstar, data = mydata)
+m4 <- lm(Y_star ~ X, data = mydata)
+m5 <- lm(Y_star ~ X_star, data = mydata)
+#-------------------------------------------------------
+#-------------------------------------------------------
+# 1. Store the models in a list for convenience:
+models_list <- list(
+  "(X, Y)"       = m1,
+  "(logX, Y)"    = m2,
+  "(1/X, Y)"     = m3,
+  "(X, logY)"    = m4,
+  "(logX, logY)" = m5
+)
+
+# 2. Create an empty data frame to fill in a loop:
+model_table <- data.frame(
+  Model        = character(),
+  Intercept    = numeric(),
+  Slope        = numeric(),
+  SE_Intercept = numeric(),
+  SE_Slope     = numeric(),
+  t_Intercept  = numeric(),
+  t_Slope      = numeric(),
+  p_Intercept  = numeric(),
+  p_Slope      = numeric(),
+  R2           = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# 3. Loop over each model, extract stats, and store them in 'model_table'
+i <- 1
+for (model_name in names(models_list)) {
+  sm <- summary(models_list[[model_name]])        # summary of the model
+  coefs <- sm$coefficients                        # coefficient matrix [Estimate, Std. Error, t value, Pr(>|t|)]
+  
+  model_table[i, "Model"]        = model_name
+  model_table[i, "Intercept"]    = coefs[1, 1]
+  model_table[i, "Slope"]        = coefs[2, 1]
+  model_table[i, "SE_Intercept"] = coefs[1, 2]
+  model_table[i, "SE_Slope"]     = coefs[2, 2]
+  model_table[i, "t_Intercept"]  = coefs[1, 3]
+  model_table[i, "t_Slope"]      = coefs[2, 3]
+  model_table[i, "p_Intercept"]  = coefs[1, 4]
+  model_table[i, "p_Slope"]      = coefs[2, 4]
+  model_table[i, "R2"]           = sm$r.squared
+  
+  i <- i + 1
+}
+
+# 4. View the final summary table:
+model_table
+
+
+
+
+
+
+#---------------------------------------------------------------  
+#------ 3f).Calculate the fitted values ˆ Yi,j
+#---------------------------------------------------------------
+
+
+# 1.--- fitted values for each model
+# m1: Y ~ X
+mydata$yhat_m1  <- predict(m1)         # in the original Y scale
+mydata$resid_m1 <- mydata$Y - mydata$yhat_m1
+RSS_m1          <- sum(mydata$resid_m1^2)
+
+# m2: Y ~ log(X)     (still Y is untransformed)
+mydata$yhat_m2  <- predict(m2)         # direct prediction is already in Y-scale
+mydata$resid_m2 <- mydata$Y - mydata$yhat_m2
+RSS_m2          <- sum(mydata$resid_m2^2)
+
+# m3: Y ~ I(1/X)     (still Y is untransformed)
+mydata$yhat_m3  <- predict(m3)
+mydata$resid_m3 <- mydata$Y - mydata$yhat_m3
+RSS_m3          <- sum(mydata$resid_m3^2)
+
+# ----2. Models with log(Y)
+
+# m4: log(Y) ~ X
+# predict(m4) yields log(Yhat), so exponentiate:
+mydata$yhat_m4  <- exp(predict(m4))    # re-transform to original Y scale
+mydata$resid_m4 <- mydata$Y - mydata$yhat_m4
+RSS_m4          <- sum(mydata$resid_m4^2)
+
+# m5: log(Y) ~ log(X)
+# similarly, exponentiate the predicted log(Y)
+mydata$yhat_m5  <- exp(predict(m5))
+mydata$resid_m5 <- mydata$Y - mydata$yhat_m5
+RSS_m5          <- sum(mydata$resid_m5^2)
+
+# 3. Summaries
+RSS_m1
+RSS_m2
+RSS_m3
+RSS_m4
+RSS_m5
+
+# For convenience,i put results into a small data frame:
+rss_df <- data.frame(
+  Model = c("m1 (X, Y)", "m2 (logX, Y)", "m3 (1/X, Y)", "m4 (X, logY)", "m5 (logX, logY)"),
+  RSS   = c(RSS_m1, RSS_m2, RSS_m3, RSS_m4, RSS_m5)
+)
+print(rss_df)
+
+
+
+#---------------------------------------------------------------  
+#------ 3G).Display regression lines for all models
+#---------------------------------------------------------------
+
+
+# 1) Create a sequence of X for plotting
+x_grid <- seq(min(mydata$X), max(mydata$X), length.out = 200)
+
+
+# m1: Y ~ X
+yhat_m1 <- predict(m1, newdata = data.frame(X = x_grid))
+# m2: Y ~ log(X)
+x_star_grid <- log(x_grid)
+yhat_m2 <- predict(m2, newdata = data.frame(X_star = x_star_grid))
+# m3: Y ~ I(1/X)
+x_starstar_grid <- 1 / x_grid
+yhat_m3 <- predict(m3, newdata = data.frame(X_starstar = x_starstar_grid))
+# m4: logY ~ X
+logyhat_m4 <- predict(m4, newdata = data.frame(X = x_grid))
+yhat_m4 <- exp(logyhat_m4)  # transform back to original Y
+# m5: logY ~ logX
+logx_grid <- log(x_grid)
+logyhat_m5 <- predict(m5, newdata = data.frame(X_star = logx_grid))
+yhat_m5 <- exp(logyhat_m5)
+
+# 1) Combine each model's predictions into one data frame
+df_lines <- data.frame(
+  X     = rep(x_grid, 5),
+  Y_hat = c(yhat_m1, yhat_m2, yhat_m3, yhat_m4, yhat_m5),
+  Model = factor(rep(
+    c("m1: (X, Y)",
+      "m2: (logX, Y)",
+      "m3: (1/X, Y)",
+      "m4: (X, logY)",
+      "m5: (logX, logY)"),
+    each = length(x_grid)
+  ))
+)
+
+# Create the ggplot
+ggplot() +
+  # Plot original data points
+  geom_point(data = mydata, aes(x = X, y = Y), 
+             color = "gray40") +
+  
+  # Add all lines, colored by Model
+  geom_line(data = df_lines, aes(x = X, y = Y_hat, color = Model)) +
+  
+  # Label axes and set a title
+  labs(x    = "GDP per Capita (X, original scale)",
+       y    = "Life Expectancy (Y, original scale)",
+       title= "All SLR Fits on Original Scale") +
+  
+  # Optional: manually specify colors if you prefer
+  scale_color_manual(values = c("red","blue","green","purple","orange")) +
+  theme(
+    plot.title = element_text(hjust = 0.5) 
+  )
+
+
+#---------------------------------------------------------------  
+#------ 3H).Display regression lines for all models
+#---------------------------------------------------------------
+
+# In this case M2 is the best model ( )
+best_model <- lm(Y ~ X_star, data = mydata)
+
+# 1)  Predictions and 95% prediction intervals for EACH observation
+pred_int <- predict(best_model, 
+                    interval = "prediction",
+                    level    = 0.95)
+
+# pred_int is a matrix with columns: fit, lwr, upr
+mydata$fit_m2 <- pred_int[, "fit"]
+mydata$lwr_m2 <- pred_int[, "lwr"]
+mydata$upr_m2 <- pred_int[, "upr"]
+
+mydata_sorted <- mydata %>% arrange(X)
+
+# 2) Create the ggplot
+ggplot(mydata_sorted, aes(x = X)) +
+  
+  # Original data points
+  geom_point(aes(y = Y, color = "Data"), shape = 16) +
+  
+  # Fitted line
+  geom_line(aes(y = fit_m2, color = "Fitted Line"), size = 1.2) +
+  
+  # Lower bound of 95% prediction interval
+  geom_line(aes(y = lwr_m2, color = "95% Pred. Interval"),
+            linetype = "dashed", size = 1) +
+  
+  # Upper bound of 95% prediction interval
+  geom_line(aes(y = upr_m2, color = "95% Pred. Interval"),
+            linetype = "dashed", size = 1) +
+  
+  # Define the colors and remove the legend title
+  scale_color_manual(
+    name = "",
+    values = c("Data"               = "gray50",
+               "Fitted Line"        = "blue",
+               "95% Pred. Interval" = "red")
+  ) +
+  
+  # Labels and styling
+  labs(title = "Model: Y ~ log(X) with 95% Prediction Intervals",
+       x = "X (GDP per capita)",
+       y = "Y (Life Expectancy)")+
+  theme(
+    plot.title = element_text(hjust = 0.5) 
+  )
+
+
+
